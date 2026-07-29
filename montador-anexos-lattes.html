@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Montador de Anexos — Currículo Lattes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+  :root {
+    --blue-900: #123456;
+    --blue-700: #1e4d78;
+    --blue-500: #2b6ca3;
+    --blue-100: #eaf2f8;
+    --gray-50: #f7f8fa;
+    --gray-100: #eef0f3;
+    --gray-300: #d6dae0;
+    --gray-500: #7c8593;
+    --gray-700: #3c4650;
+    --green: #1e8e5a;
+    --red: #c23b3b;
+    --amber: #b8860b;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--gray-50);
+    color: var(--gray-700);
+    line-height: 1.5;
+  }
+  header.app-header {
+    background: linear-gradient(135deg, var(--blue-900), var(--blue-700));
+    color: white;
+    padding: 28px 24px;
+  }
+  header.app-header h1 { margin: 0 0 6px; font-size: 22px; }
+  header.app-header p { margin: 0; color: #dbe8f3; font-size: 14px; max-width: 780px; }
+  .privacy-note {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 12px; font-size: 12.5px; background: rgba(255,255,255,0.12);
+    padding: 6px 12px; border-radius: 20px; color: #eaf2f8;
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 24px; }
+  .card {
+    background: white; border: 1px solid var(--gray-300); border-radius: var(--radius);
+    padding: 20px 22px; margin-bottom: 18px; box-shadow: 0 1px 2px rgba(20,30,50,0.04);
+  }
+  .card h2 {
+    font-size: 16px; margin: 0 0 4px; color: var(--blue-900); display: flex; align-items: center; gap: 8px;
+  }
+  .card .step-num {
+    background: var(--blue-700); color: white; width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;
+  }
+  .card .sub { font-size: 13px; color: var(--gray-500); margin: 0 0 14px; }
+  .card.disabled { opacity: 0.5; pointer-events: none; }
+
+  .dropzone {
+    border: 2px dashed var(--gray-300); border-radius: var(--radius); padding: 22px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+    font-size: 13.5px; color: var(--gray-500);
+  }
+  .dropzone:hover, .dropzone.drag-over { border-color: var(--blue-500); background: var(--blue-100); }
+  .dropzone input { display: none; }
+  .dropzone .fname { color: var(--blue-900); font-weight: 600; margin-top: 4px; }
+
+  .status-line { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge.ok { background: #e5f5ec; color: var(--green); }
+  .badge.pending { background: var(--gray-100); color: var(--gray-500); }
+  .badge.missing { background: #fbeaea; color: var(--red); }
+  .badge.warn { background: #fbf3df; color: var(--amber); }
+
+  .error-box { background: #fbeaea; border: 1px solid #f0c4c4; color: var(--red); padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
+
+  details.rules { margin-top: 4px; }
+  details.rules summary { cursor: pointer; font-size: 13px; color: var(--blue-700); font-weight: 600; }
+  .rules-content { font-size: 13px; margin-top: 10px; white-space: pre-wrap; background: var(--gray-50); border-radius: 8px; padding: 12px 14px; max-height: 260px; overflow-y: auto; }
+
+  .section-group { margin-bottom: 18px; }
+  .section-title {
+    font-size: 13.5px; font-weight: 700; color: var(--blue-900); background: var(--blue-100);
+    padding: 7px 12px; border-radius: 6px; margin-bottom: 8px;
+  }
+  .slot {
+    display: grid; grid-template-columns: 90px 1fr auto; gap: 12px; align-items: center;
+    padding: 10px 8px; border-bottom: 1px solid var(--gray-100);
+  }
+  .slot:last-child { border-bottom: none; }
+  .slot .code { font-weight: 700; color: var(--blue-700); font-size: 13px; }
+  .slot .desc { font-size: 13px; }
+  .slot .desc .hint { display: block; font-size: 11.5px; color: var(--gray-500); margin-top: 3px; }
+  .slot .file-area { text-align: right; }
+  .slot .file-area input { display: none; }
+  .slot .file-btn {
+    font-size: 12px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--gray-300);
+    background: white; cursor: pointer; color: var(--blue-700);
+  }
+  .slot .file-btn:hover { background: var(--blue-100); }
+  .slot .attached-name { font-size: 11.5px; color: var(--green); display: block; margin-top: 4px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .summary-bar {
+    display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 16px; font-size: 13px;
+  }
+  .summary-bar b { color: var(--blue-900); }
+
+  .options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; font-size: 13.5px; }
+  .options label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+  button.primary {
+    background: var(--blue-700); color: white; border: none; padding: 11px 22px; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  button.primary:hover { background: var(--blue-900); }
+  button.primary:disabled { background: var(--gray-300); cursor: not-allowed; }
+
+  .download-box { margin-top: 16px; padding: 14px 16px; background: #e5f5ec; border: 1px solid #bfe4cf; border-radius: 8px; display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .download-box a { background: var(--green); color: white; text-decoration: none; padding: 9px 16px; border-radius: 6px; font-size: 13.5px; font-weight: 600; }
+
+  .missing-list { font-size: 12.5px; color: var(--red); margin-top: 8px; }
+  footer { text-align: center; font-size: 12px; color: var(--gray-500); padding: 24px; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>Montador de Anexos do Currículo Lattes</h1>
+  <p>Monte automaticamente o PDF final (Currículo Lattes + certificados comprobatórios) na ordem exigida pela planilha de pontuação do seu processo seletivo, com cada anexo numerado corretamente.</p>
+  <span class="privacy-note">🔒 Tudo é processado no seu navegador — nenhum arquivo é enviado a servidores externos.</span>
+</header>
+
+<main>
+
+  <!-- STEP 1: Planilha -->
+  <div class="card" id="card-planilha">
+    <h2><span class="step-num">1</span> Envie a planilha de pontuação (.xlsx)</h2>
+    <p class="sub">A planilha deve ter uma coluna <b>ANEXO</b> com os códigos dos documentos exigidos para cada item (ex.: <code>2.4-1, 2.4-2</code>).</p>
+    <div class="dropzone" id="dz-planilha">
+      <input type="file" id="input-planilha" accept=".xlsx,.xls">
+      <div>📊 Clique ou arraste a planilha (.xlsx) aqui</div>
+      <div class="fname" id="fname-planilha"></div>
+    </div>
+    <div id="planilha-error"></div>
+    <div id="planilha-summary" style="display:none">
+      <div class="summary-bar" id="planilha-summary-bar"></div>
+      <details class="rules">
+        <summary>Ver regras de comprovação (aba "Regras para o preenchimento")</summary>
+        <div class="rules-content" id="rules-content"></div>
+      </details>
+    </div>
+  </div>
+
+  <!-- STEP 2: Lattes -->
+  <div class="card" id="card-lattes">
+    <h2><span class="step-num">2</span> Envie o PDF do Currículo Lattes</h2>
+    <p class="sub">O PDF exportado da Plataforma Lattes (Sistema de Currículos Lattes → gerar PDF).</p>
+    <div class="dropzone" id="dz-lattes">
+      <input type="file" id="input-lattes" accept="application/pdf">
+      <div>📄 Clique ou arraste o PDF do Lattes aqui</div>
+      <div class="fname" id="fname-lattes"></div>
+    </div>
+    <div id="lattes-error"></div>
+    <div class="status-line" id="lattes-status"></div>
+  </div>
+
+  <!-- STEP 3: Checklist -->
+  <div class="card disabled" id="card-checklist">
+    <h2><span class="step-num">3</span> Anexe os certificados</h2>
+    <p class="sub">Envie um PDF para cada código de anexo exigido pela planilha. Os itens estão agrupados como no formulário.</p>
+    <div class="summary-bar" id="checklist-summary"></div>
+    <div id="checklist-groups"></div>
+  </div>
+
+  <!-- STEP 4: Generate -->
+  <div class="card disabled" id="card-generate">
+    <h2><span class="step-num">4</span> Gerar PDF final</h2>
+    <p class="sub">O PDF final terá: Currículo Lattes → sumário dos anexos → certificados na ordem do formulário.</p>
+    <div class="options">
+      <label><input type="checkbox" id="opt-stamp" checked> Carimbar o código do anexo (ex.: "ANEXO 2.4-3") no topo da primeira página de cada certificado</label>
+      <label><input type="checkbox" id="opt-summary" checked> Incluir página de sumário dos anexos logo após o Currículo Lattes</label>
+    </div>
+    <button class="primary" id="btn-generate">Gerar PDF final</button>
+    <div class="missing-list" id="missing-list"></div>
+    <div id="generate-error"></div>
+    <div class="download-box" id="download-box">
+      <span id="download-info"></span>
+      <a id="download-link" download>⬇️ Baixar PDF final</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>Ferramenta local — funciona com qualquer planilha de pontuação que tenha uma coluna "ANEXO". Reutilizável para outros candidatos e processos seletivos.</footer>
+
+<script>
+/*
+ * Montador de Anexos do Currículo Lattes
+ * ----------------------------------------------------------------
+ * Aplicação client-side (sem backend). Fluxo:
+ *   1. Parseia a planilha de pontuação (.xlsx) e extrai, de forma
+ *      genérica, os códigos exigidos na coluna "ANEXO".
+ *   2. Recebe o PDF do Currículo Lattes.
+ *   3. Permite anexar um PDF de certificado para cada código.
+ *   4. Monta um PDF final: Lattes + sumário + certificados, na
+ *      ordem exata do formulário, com carimbo opcional do código
+ *      em cada certificado.
+ *
+ * Bibliotecas de terceiros (CDN): SheetJS (xlsx) e pdf-lib.
+ */
+
+(() => {
+  'use strict';
+
+  /** Estado global da aplicação (em memória, nada é persistido). */
+  const state = {
+    planilha: {
+      parsed: false,
+      sheetName: null,
+      slots: [],       // [{code, description, section, file:null, bytes:null}]
+      rulesText: '',
+      rulesRanges: [], // [{from:[maj,min], to:[maj,min], text}]
+    },
+    lattes: {
+      file: null,
+      bytes: null,
+    },
+  };
+
+  // ---------------------------------------------------------------
+  // Utilidades
+  // ---------------------------------------------------------------
+
+  /** Lê um File como ArrayBuffer, retornando uma Promise. */
+  function readFileAsArrayBuffer(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => reject(new Error('Falha ao ler o arquivo "' + file.name + '".'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  /** Compara dois códigos de anexo (ex.: "2.4-10" vs "2.4-2") numericamente, parte a parte. */
+  function compareCodes(a, b) {
+    const partsA = a.split(/[.\-]/).map((p) => parseFloat(p.replace(',', '.')) || 0);
+    const partsB = b.split(/[.\-]/).map((p) => parseFloat(p.replace(',', '.')) || 0);
+    const len = Math.max(partsA.length, partsB.length);
+    for (let i = 0; i < len; i++) {
+      const na = partsA[i] ?? 0;
+      const nb = partsB[i] ?? 0;
+      if (na !== nb) return na - nb;
+    }
+    return a.localeCompare(b);
+  }
+
+  /** Extrai o número "maior" do item (ex.: "2.4" de "2.4-3", ou "1.13" de "1.13-7"). */
+  function itemNumberOf(code) {
+    const m = code.match(/^(\d+(?:\.\d+)?)/);
+    return m ? m[1] : code;
+  }
+
+  function toComparableNumberList(str) {
+    return str.split('.').map((p) => parseFloat(p) || 0);
+  }
+
+  function numberListCompare(a, b) {
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+      const na = a[i] ?? 0, nb = b[i] ?? 0;
+      if (na !== nb) return na - nb;
+    }
+    return 0;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function showError(containerId, message) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = message ? '<div class="error-box">⚠️ ' + escapeHtml(message) + '</div>' : '';
+  }
+
+  // ---------------------------------------------------------------
+  // Etapa 1 — Parse da planilha
+  // ---------------------------------------------------------------
+
+  /**
+   * Localiza, em todas as abas do workbook, a linha de cabeçalho que
+   * contenha uma célula "ANEXO" (case-insensitive). Retorna a aba,
+   * o índice da linha de cabeçalho e o mapeamento de colunas.
+   */
+  function findScoringSheet(workbook) {
+    for (const sheetName of workbook.SheetNames) {
+      const ws = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+      for (let r = 0; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const anexoCol = row.findIndex((c) => typeof c === 'string' && c.trim().toUpperCase() === 'ANEXO');
+        if (anexoCol !== -1) {
+          const descCol = row.findIndex((c) => typeof c === 'string' && /TIPO DE ATIVIDADE|ATIVIDADE|DESCRI/i.test(c.trim()));
+          return {
+            sheetName,
+            rows,
+            headerRowIndex: r,
+            anexoCol,
+            descCol: descCol !== -1 ? descCol : 0,
+          };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Tenta localizar a aba de regras/instruções de comprovação (texto livre). */
+  function findRulesSheet(workbook) {
+    const candidates = workbook.SheetNames.filter((n) => /regra|instru|orienta/i.test(n));
+    const target = candidates[0] || null;
+    if (!target) return '';
+    const ws = workbook.Sheets[target];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+    return rows
+      .map((row) => (row || []).filter((c) => c !== null && String(c).trim() !== '').join(' '))
+      .filter((line) => line.trim() !== '')
+      .join('\n');
+  }
+
+  /** Extrai faixas tipo "Itens 2.1 a 2.14 - apresentar certificados..." do texto de regras. */
+  function parseRuleRanges(rulesText) {
+    const ranges = [];
+    const lines = rulesText.split('\n');
+    const re = /^Itens?\s+([\d.]+)\.?\s*(?:a\s+([\d.]+)\.?)?\s*-\s*(.+)$/i;
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      const m = line.match(re);
+      if (m) {
+        const from = toComparableNumberList(m[1].replace(/\.$/, ''));
+        const to = m[2] ? toComparableNumberList(m[2].replace(/\.$/, '')) : from;
+        ranges.push({ from, to, text: m[3].trim() });
+      }
+    }
+    return ranges;
+  }
+
+  /** Retorna o texto de regra aplicável a um item (ex.: "2.4"), se houver. */
+  function ruleHintFor(itemNumber, ranges) {
+    const n = toComparableNumberList(itemNumber);
+    for (const range of ranges) {
+      if (numberListCompare(n, range.from) >= 0 && numberListCompare(n, range.to) <= 0) {
+        return range.text;
+      }
+    }
+    return '';
+  }
+
+  /** Constrói a lista de "slots" (um por código de anexo) a partir das linhas da planilha. */
+  function buildSlotsFromSheet(sheetInfo, ruleRanges) {
+    const { rows, headerRowIndex, anexoCol, descCol } = sheetInfo;
+    const slots = [];
+    let currentSection = '';
+
+    for (let r = headerRowIndex + 1; r < rows.length; r++) {
+      const row = rows[r] || [];
+      const nonNullCount = row.filter((c) => c !== null && String(c).trim() !== '').length;
+      const descRaw = row[descCol];
+      const anexoRaw = row[anexoCol];
+
+      if (nonNullCount === 0) continue;
+
+      // Linha de título de seção: só a descrição preenchida, mais nada.
+      if (nonNullCount === 1 && descRaw) {
+        currentSection = String(descRaw).trim();
+        continue;
+      }
+
+      if (anexoRaw && String(anexoRaw).trim() !== '') {
+        const description = descRaw ? String(descRaw).trim() : '(sem descrição)';
+        const itemNumber = itemNumberOf(description) || itemNumberOf(String(anexoRaw));
+        const hint = ruleHintFor(itemNumber, ruleRanges);
+        const codes = String(anexoRaw).split(',').map((c) => c.trim()).filter(Boolean);
+        for (const code of codes) {
+          slots.push({
+            code,
+            description,
+            section: currentSection,
+            hint,
+            file: null,
+            bytes: null,
+          });
+        }
+      }
+    }
+
+    slots.sort((a, b) => compareCodes(a.code, b.code));
+    return slots;
+  }
+
+  async function handlePlanilhaFile(file) {
+    showError('planilha-error', '');
+    document.getElementById('fname-planilha').textContent = file.name;
+    try {
+      const buffer = await readFileAsArrayBuffer(file);
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetInfo = findScoringSheet(workbook);
+      if (!sheetInfo) {
+        throw new Error('Não encontrei nenhuma aba com uma coluna "ANEXO". Verifique se a planilha segue o formato esperado (uma coluna chamada ANEXO com os códigos dos documentos).');
+      }
+      const rulesText = findRulesSheet(workbook);
+      const ruleRanges = parseRuleRanges(rulesText);
+      const slots = buildSlotsFromSheet(sheetInfo, ruleRanges);
+
+      if (slots.length === 0) {
+        throw new Error('A coluna ANEXO foi encontrada, mas nenhum código de anexo foi lido. Confira se as células dessa coluna estão preenchidas (ex.: "2.4-1, 2.4-2").');
+      }
+
+      state.planilha.parsed = true;
+      state.planilha.sheetName = sheetInfo.sheetName;
+      state.planilha.slots = slots;
+      state.planilha.rulesText = rulesText;
+
+      renderPlanilhaSummary();
+      renderChecklist();
+      updateCardStates();
+    } catch (err) {
+      state.planilha.parsed = false;
+      showError('planilha-error', err.message);
+    }
+  }
+
+  function renderPlanilhaSummary() {
+    const { slots, sheetName, rulesText } = state.planilha;
+    document.getElementById('planilha-summary').style.display = 'block';
+    document.getElementById('planilha-summary-bar').innerHTML =
+      '<span>📄 Aba lida: <b>' + escapeHtml(sheetName) + '</b></span>' +
+      '<span>🔢 Anexos exigidos: <b>' + slots.length + '</b></span>';
+    document.getElementById('rules-content').textContent = rulesText || 'Nenhuma aba de regras encontrada.';
+  }
+
+  // ---------------------------------------------------------------
+  // Etapa 2 — Lattes PDF
+  // ---------------------------------------------------------------
+
+  async function handleLattesFile(file) {
+    showError('lattes-error', '');
+    document.getElementById('fname-lattes').textContent = file.name;
+    try {
+      const buffer = await readFileAsArrayBuffer(file);
+      const bytes = new Uint8Array(buffer);
+      const header = new TextDecoder().decode(bytes.slice(0, 5));
+      if (header !== '%PDF-') {
+        throw new Error('O arquivo enviado não parece ser um PDF válido.');
+      }
+      // Valida que o pdf-lib consegue abrir o arquivo.
+      const { PDFDocument } = PDFLib;
+      const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      state.lattes.file = file;
+      state.lattes.bytes = bytes;
+      document.getElementById('lattes-status').innerHTML =
+        '<span class="badge ok">✓ ' + doc.getPageCount() + ' página(s)</span>';
+      updateCardStates();
+    } catch (err) {
+      state.lattes.bytes = null;
+      showError('lattes-error', 'Não foi possível ler o PDF: ' + err.message);
+      document.getElementById('lattes-status').innerHTML = '';
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Etapa 3 — Checklist de anexos
+  // ---------------------------------------------------------------
+
+  function renderChecklist() {
+    const container = document.getElementById('checklist-groups');
+    container.innerHTML = '';
+
+    const groups = new Map();
+    for (const slot of state.planilha.slots) {
+      if (!groups.has(slot.section)) groups.set(slot.section, []);
+      groups.get(slot.section).push(slot);
+    }
+
+    for (const [section, slots] of groups) {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'section-group';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'section-title';
+      titleEl.textContent = section || '(sem seção)';
+      groupEl.appendChild(titleEl);
+
+      for (const slot of slots) {
+        groupEl.appendChild(renderSlotRow(slot));
+      }
+      container.appendChild(groupEl);
+    }
+
+    updateChecklistSummary();
+  }
+
+  function renderSlotRow(slot) {
+    const row = document.createElement('div');
+    row.className = 'slot';
+    row.id = 'slot-' + cssSafe(slot.code);
+
+    const codeEl = document.createElement('div');
+    codeEl.className = 'code';
+    codeEl.textContent = slot.code;
+
+    const descEl = document.createElement('div');
+    descEl.className = 'desc';
+    descEl.innerHTML = escapeHtml(slot.description) +
+      (slot.hint ? '<span class="hint">📎 ' + escapeHtml(slot.hint) + '</span>' : '');
+
+    const fileArea = document.createElement('div');
+    fileArea.className = 'file-area';
+    const inputId = 'file-input-' + cssSafe(slot.code);
+    fileArea.innerHTML =
+      '<input type="file" id="' + inputId + '" accept="application/pdf">' +
+      '<button type="button" class="file-btn" data-target="' + inputId + '">📎 Anexar PDF</button>' +
+      '<span class="attached-name" id="attached-' + cssSafe(slot.code) + '"></span>';
+
+    row.appendChild(codeEl);
+    row.appendChild(descEl);
+    row.appendChild(fileArea);
+    return row;
+  }
+
+  function cssSafe(code) {
+    return code.replace(/[^a-zA-Z0-9]/g, '_');
+  }
+
+  function updateChecklistSummary() {
+    const total = state.planilha.slots.length;
+    const attached = state.planilha.slots.filter((s) => s.bytes).length;
+    const el = document.getElementById('checklist-summary');
+    el.innerHTML =
+      '<span class="badge ' + (attached === total ? 'ok' : 'pending') + '">' +
+      attached + ' de ' + total + ' anexos enviados</span>';
+  }
+
+  async function attachFileToSlot(code, file) {
+    const slot = state.planilha.slots.find((s) => s.code === code);
+    if (!slot) return;
+    try {
+      const buffer = await readFileAsArrayBuffer(file);
+      const bytes = new Uint8Array(buffer);
+      const header = new TextDecoder().decode(bytes.slice(0, 5));
+      if (header !== '%PDF-') throw new Error('não é um PDF válido');
+      // valida abertura
+      const { PDFDocument } = PDFLib;
+      await PDFDocument.load(bytes, { ignoreEncryption: true });
+
+      slot.file = file;
+      slot.bytes = bytes;
+      const nameEl = document.getElementById('attached-' + cssSafe(code));
+      nameEl.textContent = '✓ ' + file.name;
+      nameEl.style.color = '';
+    } catch (err) {
+      slot.file = null;
+      slot.bytes = null;
+      const nameEl = document.getElementById('attached-' + cssSafe(code));
+      nameEl.textContent = '⚠️ ' + err.message;
+      nameEl.style.color = 'var(--red)';
+    }
+    updateChecklistSummary();
+    updateCardStates();
+  }
+
+  // ---------------------------------------------------------------
+  // Etapa 4 — Geração do PDF final
+  // ---------------------------------------------------------------
+
+  function stampCodeOnPage(page, code, font, PDFLibRgb) {
+    const { height } = page.getSize();
+    const label = 'ANEXO ' + code;
+    const fontSize = 10;
+    const textWidth = font.widthOfTextAtSize(label, fontSize);
+    const padding = 4;
+    const boxWidth = textWidth + padding * 2;
+    const boxHeight = fontSize + padding * 2;
+    const x = 18;
+    const y = height - boxHeight - 14;
+    page.drawRectangle({
+      x, y, width: boxWidth, height: boxHeight,
+      color: PDFLibRgb(1, 0.95, 0.6),
+      borderColor: PDFLibRgb(0.1, 0.1, 0.1),
+      borderWidth: 0.75,
+    });
+    page.drawText(label, { x: x + padding, y: y + padding, size: fontSize, font, color: PDFLibRgb(0, 0, 0) });
+  }
+
+  function wrapText(text, font, fontSize, maxWidth) {
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+    for (const word of words) {
+      const test = current ? current + ' ' + word : word;
+      if (font.widthOfTextAtSize(test, fontSize) > maxWidth && current) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  async function buildSummaryPages(outDoc, fontRegular, fontBold, PDFLibRgb) {
+    const slots = state.planilha.slots;
+    const pageWidth = 595.28, pageHeight = 841.89; // A4
+    const marginX = 45;
+    let page = outDoc.addPage([pageWidth, pageHeight]);
+    let y = pageHeight - 60;
+
+    const drawTitle = () => {
+      page.drawText('Sumário dos Anexos', { x: marginX, y, size: 16, font: fontBold, color: PDFLibRgb(0.07, 0.2, 0.34) });
+      y -= 22;
+      page.drawText('Documentos comprobatórios anexados a este currículo, na ordem do formulário de pontuação.', {
+        x: marginX, y, size: 10, font: fontRegular, color: PDFLibRgb(0.3, 0.3, 0.3),
+      });
+      y -= 26;
+    };
+    drawTitle();
+
+    for (const slot of slots) {
+      const statusText = slot.bytes ? 'incluído' : 'NÃO ANEXADO';
+      const line = slot.code + '  —  ' + slot.description;
+      const lines = wrapText(line, fontRegular, 10.5, pageWidth - marginX * 2 - 90);
+
+      if (y < 80) {
+        page = outDoc.addPage([pageWidth, pageHeight]);
+        y = pageHeight - 60;
+      }
+
+      page.drawText(lines[0] || '', { x: marginX, y, size: 10.5, font: fontRegular, color: PDFLibRgb(0.15, 0.15, 0.15) });
+      page.drawText(statusText, {
+        x: pageWidth - marginX - 70, y, size: 9.5, font: fontBold,
+        color: slot.bytes ? PDFLibRgb(0.1, 0.55, 0.35) : PDFLibRgb(0.76, 0.23, 0.23),
+      });
+      y -= 14;
+      for (let i = 1; i < lines.length; i++) {
+        if (y < 80) {
+          page = outDoc.addPage([pageWidth, pageHeight]);
+          y = pageHeight - 60;
+        }
+        page.drawText(lines[i], { x: marginX, y, size: 10.5, font: fontRegular, color: PDFLibRgb(0.15, 0.15, 0.15) });
+        y -= 14;
+      }
+      y -= 6;
+    }
+  }
+
+  function getMissingSlots() {
+    return state.planilha.slots.filter((s) => !s.bytes);
+  }
+
+  async function generateFinalPdf() {
+    showError('generate-error', '');
+    document.getElementById('download-box').style.display = 'none';
+
+    if (!state.lattes.bytes) {
+      showError('generate-error', 'Envie o PDF do Currículo Lattes antes de gerar o documento final.');
+      return;
+    }
+
+    const missing = getMissingSlots();
+    const missingListEl = document.getElementById('missing-list');
+    if (missing.length > 0) {
+      missingListEl.textContent = 'Faltam ' + missing.length + ' anexo(s): ' + missing.map((s) => s.code).join(', ');
+      const proceed = window.confirm(
+        'Faltam ' + missing.length + ' anexo(s) obrigatório(s) (' + missing.map((s) => s.code).join(', ') +
+        '). Deseja gerar o PDF mesmo assim?'
+      );
+      if (!proceed) return;
+    } else {
+      missingListEl.textContent = '';
+    }
+
+    const btn = document.getElementById('btn-generate');
+    btn.disabled = true;
+    btn.textContent = 'Gerando...';
+
+    try {
+      const { PDFDocument, StandardFonts, rgb } = PDFLib;
+      const outDoc = await PDFDocument.create();
+      const fontRegular = await outDoc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await outDoc.embedFont(StandardFonts.HelveticaBold);
+
+      // 1. Currículo Lattes
+      const lattesDoc = await PDFDocument.load(state.lattes.bytes, { ignoreEncryption: true });
+      const lattesPages = await outDoc.copyPages(lattesDoc, lattesDoc.getPageIndices());
+      lattesPages.forEach((p) => outDoc.addPage(p));
+
+      // 2. Sumário (opcional)
+      if (document.getElementById('opt-summary').checked) {
+        await buildSummaryPages(outDoc, fontRegular, fontBold, rgb);
+      }
+
+      // 3. Certificados, na ordem do formulário
+      const stampOn = document.getElementById('opt-stamp').checked;
+      const orderedSlots = state.planilha.slots.filter((s) => s.bytes);
+      for (const slot of orderedSlots) {
+        let srcDoc;
+        try {
+          srcDoc = await PDFDocument.load(slot.bytes, { ignoreEncryption: true });
+        } catch (err) {
+          throw new Error('Não foi possível processar o anexo "' + slot.code + '" (' + slot.file.name + '). O arquivo pode estar corrompido ou protegido.');
+        }
+        const copiedPages = await outDoc.copyPages(srcDoc, srcDoc.getPageIndices());
+        copiedPages.forEach((p, idx) => {
+          outDoc.addPage(p);
+          if (stampOn && idx === 0) {
+            stampCodeOnPage(p, slot.code, fontBold, rgb);
+          }
+        });
+      }
+
+      const finalBytes = await outDoc.save();
+      const blob = new Blob([finalBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.getElementById('download-link');
+      link.href = url;
+      link.download = buildOutputFileName();
+      document.getElementById('download-info').textContent =
+        '✅ PDF gerado com ' + outDoc.getPageCount() + ' páginas (' + orderedSlots.length + ' anexo(s) incluído(s)).';
+      document.getElementById('download-box').style.display = 'flex';
+    } catch (err) {
+      showError('generate-error', err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Gerar PDF final';
+    }
+  }
+
+  function buildOutputFileName() {
+    const today = new Date();
+    const stamp = today.toISOString().slice(0, 10);
+    return 'curriculo_lattes_com_anexos_' + stamp + '.pdf';
+  }
+
+  // ---------------------------------------------------------------
+  // Controle de estado visual dos cards
+  // ---------------------------------------------------------------
+
+  function updateCardStates() {
+    const checklistCard = document.getElementById('card-checklist');
+    const generateCard = document.getElementById('card-generate');
+    if (state.planilha.parsed) {
+      checklistCard.classList.remove('disabled');
+    }
+    if (state.planilha.parsed && state.lattes.bytes) {
+      generateCard.classList.remove('disabled');
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Ligação de eventos (dropzones, inputs, botão)
+  // ---------------------------------------------------------------
+
+  function wireDropzone(dzId, inputId, onFile) {
+    const dz = document.getElementById(dzId);
+    const input = document.getElementById(inputId);
+    dz.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      if (input.files[0]) onFile(input.files[0]);
+    });
+    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dz.classList.remove('drag-over');
+      if (e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]);
+    });
+  }
+
+  wireDropzone('dz-planilha', 'input-planilha', handlePlanilhaFile);
+  wireDropzone('dz-lattes', 'input-lattes', handleLattesFile);
+
+  // Delegação de eventos para os botões "Anexar PDF" e inputs de arquivo do checklist,
+  // já que são criados dinamicamente.
+  document.getElementById('checklist-groups').addEventListener('click', (e) => {
+    const btn = e.target.closest('.file-btn');
+    if (btn) {
+      document.getElementById(btn.dataset.target).click();
+    }
+  });
+  document.getElementById('checklist-groups').addEventListener('change', (e) => {
+    if (e.target.matches('input[type="file"]')) {
+      const slotRow = e.target.closest('.slot');
+      const realCode = slotRow.querySelector('.code').textContent;
+      if (e.target.files[0]) attachFileToSlot(realCode, e.target.files[0]);
+    }
+  });
+
+  document.getElementById('btn-generate').addEventListener('click', generateFinalPdf);
+
+})();
+</script>
+</body>
+</html>
